@@ -89,7 +89,7 @@ def get_ground_truth_hourly(
     # Construct the dynamic Meteociel URL for the specified date
     METEOCIEL_URL = (
         f"https://www.meteociel.fr/temps-reel/obs_villes.php?"
-        f"code2={station_code}&jour2={jour}&mois2={mois}&annee2={annee}&affint=1"
+        f"code2={station_code}&jour2={jour}&mois2={mois}&annee2={annee}&affint=2"
     )
     
     logger.info(f"Attempting to scrape hourly ground truth data from {METEOCIEL_URL}")
@@ -161,27 +161,26 @@ def get_ground_truth_hourly(
                     # Format the time into ISO-like string (YYYY-MM-DDTHH:MM) for Chart.js
                     # e.g., "12h36" becomes "12:36" -> "2023-10-27T12:36"
                     try:
-                        # Replace 'h' with ':' for standard time format
-                        # Ensure '00' minutes if only hour is given (e.g., "7h" -> "07:00")
-                        if 'h' in time_raw:
-                            time_formatted = time_raw.replace('h', ':')
-                            if len(time_formatted) == 2: # e.g., "7:"
-                                time_formatted += "00"
-                            elif len(time_formatted) == 4 and time_formatted[-1] == ':': # e.g., "12:"
-                                time_formatted += "00"
-                            elif len(time_formatted) == 3 and time_formatted[1] == ':': # e.g., "7:3"
-                                time_formatted = time_formatted.replace(":", "0:") + "0"
-                        else: # Assume already in HH:MM or HHMM format
-                            if len(time_raw) == 4: # e.g., "1230"
-                                time_formatted = f"{time_raw[:2]}:{time_raw[2:]}"
-                            else: # fallback, hope it's valid
-                                time_formatted = time_raw
-
+                        # 1. Split the time string (e.g., "7h36" or "12h") at the 'h'.
+                        parts = time_raw.split('h')
+                        
+                        # 2. Convert the hour part to an integer.
+                        hour_int = int(parts[0])
+                        
+                        # 3. Get the minute part. If it exists, convert it; otherwise, default to 0.
+                        minute_int = int(parts[1]) if len(parts) > 1 and parts[1] else 0
+                        
+                        # 4. Use f-string formatting to ensure two digits for both hour and minute.
+                        #    e.g., hour=7, minute=36 -> "07:36"
+                        #    e.g., hour=12, minute=0 -> "12:00"
+                        time_formatted = f"{hour_int:02d}:{minute_int:02d}"
+                        
+                        # 5. Create the final, standard ISO-like string.
                         full_datetime_str = f"{date_str}T{time_formatted}"
                         
-                    except Exception as e:
-                        logger.warning(f"Scraper: Could not format time string '{time_raw}' for date '{date_str}': {e}")
-                        full_datetime_str = None # Set to None if formatting fails
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Scraper: Could not format time string '{time_raw}': {e}")
+                        full_datetime_str = None
 
                     if wind_speed_kmh is not None:
                         ground_truth_data.append({

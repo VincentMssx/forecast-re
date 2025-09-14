@@ -103,135 +103,118 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const renderChart = (hourlyForecast, hourlyGroundTruth) => {
-        if (weatherChart) {
-            weatherChart.destroy();
-        }
-        if (!hourlyForecast || !hourlyForecast.time) {
-            statusMessage.textContent = "No forecast data received.";
-            return;
-        }
+    if (weatherChart) {
+        weatherChart.destroy();
+    }
 
-        const gfsColor = 'rgba(47, 51, 175, 1)';
-        const aromeColor = 'rgba(224, 111, 31, 1)';
-        const groundTruthColor = 'rgba(0, 150, 0, 1)';
+    if (!hourlyForecast || !hourlyForecast.time) {
+        statusMessage.textContent = "No forecast data received.";
+        return;
+    }
 
-        const datasets = [];
-        const arrowSets = [];
+    const gfsColor = 'rgba(47, 51, 175, 1)';
+    const aromeColor = 'rgba(224, 111, 31, 1)';
+    const groundTruthColor = 'rgba(0, 150, 0, 1)';
 
-        // --- Forecast Data (no changes here) ---
-        if (hourlyForecast.windspeed_10m_gfs_seamless) {
-            datasets.push({
-                label: 'GFS Wind Speed',
-                data: hourlyForecast.windspeed_10m_gfs_seamless,
-                borderColor: gfsColor, tension: 0.1, pointRadius: 1,
-            });
-            arrowSets.push({
-                label: 'GFS Wind Speed', color: gfsColor,
-                observations: hourlyForecast.time.map((t, i) => ({
-                    time: t, degree: hourlyForecast.winddirection_10m_gfs_seamless[i]
-                }))
-            });
-        }
-        if (hourlyForecast.windspeed_10m_arome_france) {
-            datasets.push({
-                label: 'AROME Wind Speed',
-                data: hourlyForecast.windspeed_10m_arome_france,
-                borderColor: aromeColor, tension: 0.1, pointRadius: 1,
-            });
-            arrowSets.push({
-                label: 'AROME Wind Speed', color: aromeColor,
-                observations: hourlyForecast.time.map((t, i) => ({
-                    time: t, degree: hourlyForecast.winddirection_10m_arome_france[i]
-                }))
-            });
-        }
+    const datasets = [];
+    const arrowSets = [];
 
-        // --- Ground Truth Data ---
-        if (hourlyGroundTruth && hourlyGroundTruth.observations.length > 0) {
-            console.log(hourlyGroundTruth.observations.length)
-            // --- FIX: Filter out any observation that has null data before processing ---
-            const validObservations = hourlyGroundTruth.observations.filter(obs => 
-                obs.time !== null && 
-                obs.wind_speed_kmh !== null && 
-                obs.wind_direction_degrees !== null
-            );
-
-            // Now, use the filtered 'validObservations' array to build the chart data
-            datasets.push({
-                type: 'scatter',
-                label: 'Observation',
-                data: validObservations.map(obs => ({
-                    x: new Date(obs.time),
-                    y: obs.wind_speed_kmh
-                })),
-                backgroundColor: groundTruthColor,
-                radius: 4,
-            });
-            arrowSets.push({
-                label: 'Observation',
-                color: groundTruthColor,
-                observations: validObservations.map(obs => ({
-                    time: obs.time,
-                    degree: obs.wind_direction_degrees
-                }))
-            });
-        }
-
-        weatherChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: hourlyForecast.time.map(t => new Date(t)),
-                datasets: datasets
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                layout: {
-                    padding: {
-                        bottom: 80
-                    }
-                },
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
-                scales: {
-                    x: {
-                        type: 'time',
-                        time: {
-                            unit: 'hour',
-                            displayFormats: {
-                                hour: 'HH:mm'
-                            }
-                        },
-                        title: {
-                            display: true,
-                            text: 'Time of Day'
-                        },
-                        // --- THIS IS THE FIX ---
-                        // Force the axis to show the entire selected start date
-                        min: `${startDateInput.value}T00:00:00`,
-                        max: `${startDateInput.value}T23:59:59`,
-                        // --- END OF FIX ---
-                    },
-                    y: {
-                        position: 'left',
-                        title: {
-                            display: true,
-                            text: 'Wind Speed (km/h)'
-                        },
-                        beginAtZero: true
-                    }
-                },
-                plugins: {
-                    windArrowPlugin: {
-                        arrowSets: arrowSets
-                    },
-                    tooltip: {}
-                }
-            }
+    // --- GFS Forecast Data ---
+    if (hourlyForecast.windspeed_10m_gfs_seamless) {
+        datasets.push({
+            label: 'GFS Wind Speed', // Label for the line
+            data: hourlyForecast.windspeed_10m_gfs_seamless,
+            borderColor: gfsColor, tension: 0.1, pointRadius: 1,
         });
-    };
+        arrowSets.push({
+            label: 'GFS Wind Speed', // EXACT SAME label for the arrows
+            color: gfsColor,
+            observations: hourlyForecast.time.map((t, i) => ({
+                time: t, degree: hourlyForecast.winddirection_10m_gfs_seamless[i]
+            }))
+        });
+    }
+    // --- AROME Forecast Data ---
+    if (hourlyForecast.windspeed_10m_arome_france) {
+        datasets.push({
+            label: 'AROME Wind Speed', // Label for the line
+            data: hourlyForecast.windspeed_10m_arome_france,
+            borderColor: aromeColor, tension: 0.1, pointRadius: 1,
+        });
+        arrowSets.push({
+            label: 'AROME Wind Speed', // EXACT SAME label for the arrows
+            color: aromeColor,
+            observations: hourlyForecast.time.map((t, i) => ({
+                time: t, degree: hourlyForecast.winddirection_10m_arome_france[i]
+            }))
+        });
+    }
+
+    // --- Ground Truth Data ---
+    if (hourlyGroundTruth && hourlyGroundTruth.observations.length > 0) {
+        
+        const validObservations = hourlyGroundTruth.observations.filter(obs => 
+            obs.time !== null && 
+            obs.wind_speed_kmh !== null && 
+            obs.wind_direction_degrees !== null
+        );
+
+        datasets.push({
+            type: 'line',
+            label: 'Observation', // Label for the line
+            data: validObservations.map(obs => ({
+                x: new Date(obs.time),
+                y: obs.wind_speed_kmh
+            })),
+            borderColor: groundTruthColor,
+            backgroundColor: groundTruthColor,
+            tension: 0.1,
+            pointRadius: 3,
+            borderWidth: 2,
+        });
+        
+        // --- THIS IS THE FIX ---
+        // Ensure the arrow set for observations has the EXACT same label.
+        arrowSets.push({
+            label: 'Observation', // EXACT SAME label for the arrows
+            color: groundTruthColor,
+            observations: validObservations.map(obs => ({
+                time: obs.time,
+                degree: obs.wind_direction_degrees
+            }))
+        });
+        // --- END OF FIX ---
+    }
+
+    weatherChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: hourlyForecast.time.map(t => new Date(t)),
+            datasets: datasets
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            layout: { padding: { bottom: 80 } },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                    title: { display: true, text: 'Time of Day' },
+                    min: `${startDateInput.value}T00:00:00`,
+                    max: `${startDateInput.value}T23:59:59`,
+                },
+                y: {
+                    title: { display: true, text: 'Wind Speed (km/h)' },
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                windArrowPlugin: { arrowSets: arrowSets },
+                tooltip: { mode: 'index', intersect: false }
+            }
+        }
+    });
+};
 
     fetchButton.addEventListener('click', fetchForecast);
     fetchForecast();
