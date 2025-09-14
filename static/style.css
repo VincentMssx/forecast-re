@@ -77,37 +77,3 @@ button:hover {
     width: 100%;
     height: 60vh; /* Responsive height */
 }
-
-
-/* New Styles for Wind Arrows */
-.wind-arrows-wrapper {
-    margin-top: 40px;
-    border-top: 1px solid #eee;
-    padding-top: 20px;
-}
-
-.wind-arrows-wrapper h2 {
-    text-align: center;
-    color: #333;
-    font-size: 1.2em;
-    margin-bottom: 20px;
-}
-
-#wind-direction-container {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start; /* Aligns arrows to the start */
-    gap: 5px; /* Adds a small gap between arrows */
-    width: 100%;
-    overflow-x: auto; /* Allows horizontal scrolling if many arrows */
-    padding-bottom: 10px;
-}
-
-.wind-arrow {
-    display: inline-block;
-    font-size: 24px;
-    color: #007bff;
-    transition: transform 0.3s ease-in-out;
-    padding: 0 4px;
-    cursor: default; /* Make it look like non-interactive text */
-}

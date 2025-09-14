@@ -10,9 +10,10 @@
     <div class="container">
         <h1>Wind Forecast Viewer</h1>
         <p>
-            Forecast for Saint-Clément-Des-Baleines using data from 
-            <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a>.
+            Forecast for location (46.24°, -1.56°) vs. observations from Ile de Ré.
         </p>
+        
+        <!-- The "latest-observation" div has been REMOVED -->
         
         <div class="controls">
             <div class="input-group">
@@ -30,14 +31,6 @@
 
         <div class="chart-container">
             <canvas id="weatherChart"></canvas>
-        </div>
-
-        <!-- New container for the wind direction arrows -->
-        <div class="wind-arrows-wrapper">
-            <h2>GFS Wind Direction (Hourly)</h2>
-            <div id="wind-direction-container">
-                <!-- Arrows will be dynamically generated here -->
-            </div>
         </div>
     </div>
 
