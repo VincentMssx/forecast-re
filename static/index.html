@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AROME & GFS Wind Forecast</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Wind Forecast Viewer</h1>
+        <p>
+            Forecast for Saint-Clément-Des-Baleines using data from 
+            <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a>.
+        </p>
+        
+        <div class="controls">
+            <div class="input-group">
+                <label for="start-date">Start Date:</label>
+                <input type="date" id="start-date">
+            </div>
+            <div class="input-group">
+                <label for="end-date">End Date:</label>
+                <input type="date" id="end-date">
+            </div>
+            <button id="fetch-button">Get Forecast</button>
+        </div>
+
+        <div id="status-message"></div>
+
+        <div class="chart-container">
+            <canvas id="weatherChart"></canvas>
+        </div>
+
+        <!-- New container for the wind direction arrows -->
+        <div class="wind-arrows-wrapper">
+            <h2>GFS Wind Direction (Hourly)</h2>
+            <div id="wind-direction-container">
+                <!-- Arrows will be dynamically generated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Our custom JavaScript -->
+    <script src="/static/script.js"></script>
+</body>
+</html>
