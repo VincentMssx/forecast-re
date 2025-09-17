@@ -1,17 +1,12 @@
 import requests
+import logging
+import re
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import logging
-from datetime import datetime # Import datetime for date parsing
+from datetime import datetime
+from bs4 import BeautifulSoup, Tag
 from typing import Dict, Any
-
-
-# NEW: Import BeautifulSoup for web scraping and re for regex
-from bs4 import BeautifulSoup
-from bs4.element import Tag
-
-import re 
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +18,9 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Open-Meteo API URL
-OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast" # Removed '?' from the end
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+HISTORICAL_API_URL = "https://archive-api.open-meteo.com/v1/archive"
+MARINE_API_URL = "https://marine-api.open-meteo.com/v1/marine"
 LATITUDE = 46.244  # Forecast coordinates
 LONGITUDE = -1.561 # Forecast coordinates
 
@@ -52,7 +49,6 @@ def get_weather_forecast(
         forecast_data = response.json()
         logger.info("Successfully fetched data from Open-Meteo")
 
-        # print(f"{forecast_data=}")
         return forecast_data
 
     except requests.exceptions.RequestException as e:
@@ -205,11 +201,44 @@ def get_observations_hourly(
         logger.info(f"Scraped {len(ground_truth_data)} hourly observations for {date}.")
         observations: Dict[str, Any] = {"date": date, "observations": ground_truth_data}
         # print(f"{observations}")
-        return {"date": date, "observations": ground_truth_data}
+        return observations
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Scraping failed: Could not fetch the page for {date}. {e}")
         raise HTTPException(status_code=503, detail=f"Failed to connect to Meteociel for {date}: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred during scraping for {date}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"An internal server error occurred during scraping for {date_str}.")
+        raise HTTPException(status_code=500, detail=f"An internal server error occurred during scraping for {date}.")
+
+@app.get("/api/tides")
+def get_tides(
+    date: str = Query(..., description="Date for tide data in YYYY-MM-DD format")
+) -> Dict[str, Any]:
+    """
+    Fetches tide data from Open-Meteo.
+    """
+    logger.info(f"Fetching tide data for {date}")
+    
+    params: dict[str, str] = {
+        "latitude": str(LATITUDE),
+        "longitude": str(LONGITUDE),
+        "start_date": date,
+        "end_date": date,
+        "hourly": "sea_level_height_msl",
+        "timezone": "auto",
+    }
+
+    try:
+        response = requests.get(MARINE_API_URL, params=params)
+        response.raise_for_status()
+        tide_data = response.json()
+        logger.info("Successfully fetched tide data from Open-Meteo")
+
+        return tide_data
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"API request failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Error contacting Open-Meteo Marine API: {e}")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+        raise HTTPException(status_code=500, detail="An internal server error occurred.")

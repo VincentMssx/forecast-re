@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusMessage = document.getElementById('status-message');
     const ctx = document.getElementById('weatherChart').getContext('2d');
     
-    let weatherChart;
+    let weatherChart, tideChart;
 
     const formatDate = (date) => date.toISOString().split('T')[0];
 
@@ -86,19 +86,27 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchButton.disabled = true;
 
         try {
-            const [forecastResponse, observationsResponse] = await Promise.all([
+            const [forecastResponse, observationsResponse, tidesResponse] = await Promise.all([
                 fetch(`/api/forecast?date=${date}`),
-                fetch(`/api/observations?date=${date}`)
+                fetch(`/api/observations?date=${date}`),
+                fetch(`/api/tides?date=${date}`)
             ]);
 
             if (!forecastResponse.ok) throw new Error('Failed to fetch forecast data.');
-            if (!observationsResponse.ok) throw new Error('Failed to fetch ground truth data.');
+            if (!observationsResponse.ok) throw new Error('Failed to fetch observations data.');
+            if (!tidesResponse.ok) throw new Error('Failed to fetch tides data.');
+
             const forecastData = await forecastResponse.json();
             const observationsData = await observationsResponse.json();
+            const tidesData = await tidesResponse.json();
+
             console.log("Forecast data:", forecastData);
-            console.log("Observations data:", observationsData);
+            console.log("Observations data:", observationsResponse);
+            console.log("Tides data:", tidesData);
+
             statusMessage.textContent = "";
             renderChart(date, forecastData.hourly, observationsData);
+            renderTideChart(date, tidesData);
 
         } catch (error) {
             console.error("Error:", error);
@@ -230,6 +238,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 };
+
+    const renderTideChart = (date, tidesData) => {
+        const tideCtx = document.getElementById('tideChart').getContext('2d');
+        if (tideChart) tideChart.destroy();
+        if (!tidesData || !tidesData.hourly || !tidesData.hourly.time) return;
+
+        const tidePoints = tidesData.hourly.time.map((t, i) => ({
+            x: new Date(t),
+            y: tidesData.hourly.sea_level_height_msl[i]
+        }));
+        
+        tideChart = new Chart(tideCtx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    data: tidePoints,
+                    borderColor: 'rgba(50, 100, 200, 1)',
+                    backgroundColor: 'rgba(100, 150, 255, 0.5)',
+                    tension: 0.4, fill: 'start', pointRadius: 0,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'time', time: { unit: 'hour' },
+                        min: `${date}T00:00:00`, max: `${date}T23:59:59`,
+                    },
+                    y: { title: { display: true, text: 'Sea Level (m)' } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: `Tide Evolution for ${date}`, font: { size: 16 } }
+                }
+            }
+        });
+    };
 
     fetchButton.addEventListener('click', fetchForecast);
     prevDayButton.addEventListener('click', () => changeDate(-1));
