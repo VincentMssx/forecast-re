@@ -5,25 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AROME & GFS Wind Forecast</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 </head>
 <body>
     <div class="container">
         <h1>Wind Forecast Viewer</h1>
         <p>
-            Forecast for location (46.24°, -1.56°) vs. observations from Ile de Ré.
+            Ile de Ré : Forecast vs. Observations
         </p>
         
         <!-- The "latest-observation" div has been REMOVED -->
         
         <div class="controls">
             <div class="input-group">
-                <label for="start-date">Start Date:</label>
-                <input type="date" id="start-date">
-            </div>
-            <div class="input-group">
-                <label for="end-date">End Date:</label>
-                <input type="date" id="end-date">
-            </div>
+                <label for="dateStr">Date:</label>
+                <button id="prev-day-button">←</button>
+                <input type="date" id="dateStr">
+                <button id="next-day-button">→</button>
             <button id="fetch-button">Get Forecast</button>
         </div>
 

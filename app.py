@@ -3,10 +3,14 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import logging
-from datetime import datetime, date # Import datetime for date parsing
+from datetime import datetime # Import datetime for date parsing
+from typing import Dict, Any
+
 
 # NEW: Import BeautifulSoup for web scraping and re for regex
 from bs4 import BeautifulSoup
+from bs4.element import Tag
+
 import re 
 
 # Configure logging
@@ -23,33 +27,33 @@ OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast" # Removed '?' from the
 LATITUDE = 46.244  # Forecast coordinates
 LONGITUDE = -1.561 # Forecast coordinates
 
-@app.get("/api/weather")
+@app.get("/api/forecast")
 def get_weather_forecast(
-    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
-    end_date: str = Query(..., description="End date in YYYY-MM-DD format")
+    date: str = Query(..., description="Start date in YYYY-MM-DD format")
 ):
     """
     Fetches weather data for GFS and AROME models from Open-Meteo.
     """
-    logger.info(f"Fetching weather for lat={LATITUDE}, lon={LONGITUDE} from {start_date} to {end_date}")
+    logger.info(f"Fetching weather for {date}")
     
-    params = {
-        "latitude": LATITUDE,
-        "longitude": LONGITUDE,
-        "start_date": start_date,
-        "end_date": end_date,
+    params: dict[str, str] = {
+        "latitude": str(LATITUDE),
+        "longitude": str(LONGITUDE),
+        "start_date": date,
+        "end_date": date,
         "hourly": "windspeed_10m,winddirection_10m",
         "timezone": "auto",
-        # CORRECTED: 'models' should be a comma-separated string, not a list.
         "models": "arome_france,gfs_seamless" 
     }
 
     try:
         response = requests.get(OPEN_METEO_URL, params=params)
         response.raise_for_status()
-        data = response.json()
+        forecast_data = response.json()
         logger.info("Successfully fetched data from Open-Meteo")
-        return data
+
+        # print(f"{forecast_data=}")
+        return forecast_data
 
     except requests.exceptions.RequestException as e:
         logger.error(f"API request failed: {e}")
@@ -66,10 +70,10 @@ async def read_index():
     """
     return FileResponse('static/index.html')
 
-@app.get("/api/groundtruth_hourly")
-def get_ground_truth_hourly(
-    date_str: str = Query(..., description="Date for ground truth in YYYY-MM-DD format")
-):
+@app.get("/api/observations")
+def get_observations_hourly(
+    date: str = Query(..., description="Date for ground truth in YYYY-MM-DD format")
+) -> Dict[str, Any]:
     """
     Scrapes the Meteociel website (specific station) to get hourly observed wind data for a given date.
     The station ID (code2) is hardcoded to 7311 for Ile de Ré - Saint-Clément-des-Baleines.
@@ -78,7 +82,7 @@ def get_ground_truth_hourly(
 
     try:
         # Parse the input date string (e.g., "2023-10-27")
-        dt_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        dt_obj = datetime.strptime(date, "%Y-%m-%d")
         jour = dt_obj.day
         # Meteociel's month parameter is 0-indexed (January=0, December=11)
         mois = dt_obj.month - 1 
@@ -108,14 +112,15 @@ def get_ground_truth_hourly(
         # Based on your provided soup.txt, this table has bgcolor="#EBFAF7".
         hourly_table = soup.find('table', {'bgcolor': '#EBFAF7'})
 
-        if not hourly_table:
-            logger.warning(f"Hourly observation table (bgcolor='#EBFAF7') not found for {date_str} on Meteociel. "
+        # Ensure hourly_table is a Tag before using find_all
+        if not isinstance(hourly_table, Tag):
+            logger.warning(f"Hourly observation table (bgcolor='#EBFAF7') not found for {date} on Meteociel. "
                            "This might mean no data is available for this date, or the page structure has changed.")
             # Return an empty list if the table isn't found, indicating no data for the date.
-            return {"date": date_str, "observations": []} 
+            return {"date": date, "observations": []} 
 
         rows = hourly_table.find_all('tr')
-        ground_truth_data = []
+        ground_truth_data: list[dict[str, Any]] = []
 
         # Regex to extract wind direction text and degrees from the 'onmouseover' attribute of the image.
         # Example: 'Direction : </i>Ouest <small>(260°)</small>'
@@ -128,7 +133,11 @@ def get_ground_truth_hourly(
         # The first row (index 0) in the hourly_table is the header. Data rows start from index 1.
         if len(rows) > 1:
             for row in rows[1:]: 
-                cells = row.find_all('td')
+                # Ensure cells is always a list of Tag, even if find_all returns a ResultSet or unknown type
+                if isinstance(row, Tag):
+                    cells = list(row.find_all('td'))
+                else:
+                    continue
                 
                 # Ensure it's a valid data row (not an empty separator or malformed row).
                 # A full data row should have at least 11 cells for time and wind data.
@@ -149,14 +158,16 @@ def get_ground_truth_hourly(
                             logger.warning(f"Scraper: Could not convert wind speed/rafales from '{wind_speed_text_content}'.")
 
                     # Extract wind direction from the 10th cell (index 9) which contains an <img> tag
-                    wind_img_tag = cells[9].find('img')
-                    if wind_img_tag and 'onmouseover' in wind_img_tag.attrs:
+                    wind_img_tag = None
+                    if isinstance(cells[9], Tag):
+                        wind_img_tag = cells[9].find('img')
+                    if isinstance(wind_img_tag, Tag) and 'onmouseover' in wind_img_tag.attrs:
                         onmouseover_text = wind_img_tag['onmouseover']
-                        dir_match = wind_direction_pattern.search(onmouseover_text)
+                        dir_match = wind_direction_pattern.search(str(onmouseover_text))
                         try:
-                            wind_direction_degrees = float(dir_match.group(2).strip())
+                            wind_direction_degrees = float(dir_match.group(2).strip()) if dir_match else None
                         except ValueError:
-                            logger.warning(f"Scraper: Could not convert wind direction degrees from '{dir_match.group(2)}'.")
+                            logger.warning(f"Scraper: Could not convert wind direction degrees from '{dir_match.group(2) if dir_match else ''}'.")
                     
                     # Format the time into ISO-like string (YYYY-MM-DDTHH:MM) for Chart.js
                     # e.g., "12h36" becomes "12:36" -> "2023-10-27T12:36"
@@ -176,7 +187,7 @@ def get_ground_truth_hourly(
                         time_formatted = f"{hour_int:02d}:{minute_int:02d}"
                         
                         # 5. Create the final, standard ISO-like string.
-                        full_datetime_str = f"{date_str}T{time_formatted}"
+                        full_datetime_str = f"{date}T{time_formatted}"
                         
                     except (ValueError, IndexError) as e:
                         logger.warning(f"Scraper: Could not format time string '{time_raw}': {e}")
@@ -191,12 +202,14 @@ def get_ground_truth_hourly(
                         
                     ground_truth_data.sort(key=lambda item: item['time'])
 
-        logger.info(f"Scraped {len(ground_truth_data)} hourly observations for {date_str}.")
-        return {"date": date_str, "observations": ground_truth_data}
+        logger.info(f"Scraped {len(ground_truth_data)} hourly observations for {date}.")
+        observations: Dict[str, Any] = {"date": date, "observations": ground_truth_data}
+        # print(f"{observations}")
+        return {"date": date, "observations": ground_truth_data}
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Scraping failed: Could not fetch the page for {date_str}. {e}")
-        raise HTTPException(status_code=503, detail=f"Failed to connect to Meteociel for {date_str}: {e}")
+        logger.error(f"Scraping failed: Could not fetch the page for {date}. {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to connect to Meteociel for {date}: {e}")
     except Exception as e:
-        logger.error(f"An unexpected error occurred during scraping for {date_str}: {e}", exc_info=True)
+        logger.error(f"An unexpected error occurred during scraping for {date}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An internal server error occurred during scraping for {date_str}.")

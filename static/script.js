@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const startDateInput = document.getElementById('start-date');
-    const endDateInput = document.getElementById('end-date');
+    const dateInput = document.getElementById('dateStr');
     const fetchButton = document.getElementById('fetch-button');
+    const prevDayButton = document.getElementById('prev-day-button');
+    const nextDayButton = document.getElementById('next-day-button');
     const statusMessage = document.getElementById('status-message');
     const ctx = document.getElementById('weatherChart').getContext('2d');
     
@@ -9,11 +10,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const formatDate = (date) => date.toISOString().split('T')[0];
 
-    const todayStr = formatDate(new Date());
-    startDateInput.value = todayStr;
-    endDateInput.value = todayStr;
+    const changeDate = (days) => {
+        const currentDate = new Date(dateInput.value);
+        currentDate.setDate(currentDate.getDate() + days);
+        dateInput.value = formatDate(currentDate);
+        fetchForecast();
+    };
 
-    // --- (The windArrowPlugin code remains exactly the same as the previous version) ---
+    const todayStr = formatDate(new Date());
+    dateInput.value = todayStr;
+
     const windArrowPlugin = {
         id: 'windArrowPlugin',
         afterDatasetsDraw(chart, args, options) {
@@ -29,13 +35,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             arrowSets.forEach((arrowSet, setIndex) => {
                 const targetDataset = chart.data.datasets.find(d => d.label === arrowSet.label);
-                if (!targetDataset || !chart.isDatasetVisible(targetDataset.index)) {
+                if (!targetDataset || !chart.isDatasetVisible(chart.data.datasets.indexOf(targetDataset))) {
                     return;
                 }
                 arrowSet.observations.forEach(obs => {
                     if (obs.time && obs.degree !== null) {
                         const xPos = x.getPixelForValue(new Date(obs.time));
-                        const yPos = chart.chartArea.bottom + 35 + (setIndex * rowSpacing);
+                        const yPos = chart.chartArea.bottom + 80 + (setIndex * rowSpacing);
 
                         if (xPos < chart.chartArea.left || xPos > chart.chartArea.right) {
                             return;
@@ -69,11 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
     Chart.register(windArrowPlugin);
 
     const fetchForecast = async () => {
-        const startDate = startDateInput.value;
-        const endDate = endDateInput.value;
+        const date = dateInput.value;
 
-        if (!startDate || !endDate) {
-            statusMessage.textContent = "Please select a start and end date.";
+        if (!date) {    
+            statusMessage.textContent = "Please select a date.";
             return;
         }
 
@@ -81,18 +86,19 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchButton.disabled = true;
 
         try {
-            const [forecastResponse, groundTruthResponse] = await Promise.all([
-                fetch(`/api/weather?start_date=${startDate}&end_date=${endDate}`),
-                fetch(`/api/groundtruth_hourly?date_str=${startDate}`)
+            const [forecastResponse, observationsResponse] = await Promise.all([
+                fetch(`/api/forecast?date=${date}`),
+                fetch(`/api/observations?date=${date}`)
             ]);
 
             if (!forecastResponse.ok) throw new Error('Failed to fetch forecast data.');
-            if (!groundTruthResponse.ok) throw new Error('Failed to fetch ground truth data.');
+            if (!observationsResponse.ok) throw new Error('Failed to fetch ground truth data.');
             const forecastData = await forecastResponse.json();
-            const groundTruthData = await groundTruthResponse.json();
-            console.log(forecastData)
+            const observationsData = await observationsResponse.json();
+            console.log("Forecast data:", forecastData);
+            console.log("Observations data:", observationsData);
             statusMessage.textContent = "";
-            renderChart(forecastData.hourly, groundTruthData);
+            renderChart(date, forecastData.hourly, observationsData);
 
         } catch (error) {
             console.error("Error:", error);
@@ -102,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    const renderChart = (hourlyForecast, hourlyGroundTruth) => {
+    const renderChart = (date, hourlyForecast, hourlyObservations) => {
     if (weatherChart) {
         weatherChart.destroy();
     }
@@ -114,77 +120,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const gfsColor = 'rgba(47, 51, 175, 1)';
     const aromeColor = 'rgba(224, 111, 31, 1)';
-    const groundTruthColor = 'rgba(0, 150, 0, 1)';
+    const observationsColor = 'rgba(0, 150, 0, 1)';
 
     const datasets = [];
-    const arrowSets = [];
+    const arrowSets = [
+        { label: 'GFS Wind Speed', color: gfsColor, observations: [] },
+        { label: 'AROME Wind Speed', color: aromeColor, observations: [] },
+        { label: 'Observation', color: observationsColor, observations: [] }
+    ];
 
     // --- GFS Forecast Data ---
+    const gfsDataset = {
+        label: 'GFS Wind Speed',
+        data: [],
+        borderColor: gfsColor,
+        backgroundColor: gfsColor,
+        tension: 0.1,
+        pointRadius: 1,
+    };
     if (hourlyForecast.windspeed_10m_gfs_seamless) {
-        datasets.push({
-            label: 'GFS Wind Speed', // Label for the line
-            data: hourlyForecast.windspeed_10m_gfs_seamless,
-            borderColor: gfsColor, tension: 0.1, pointRadius: 1,
-        });
-        arrowSets.push({
-            label: 'GFS Wind Speed', // EXACT SAME label for the arrows
-            color: gfsColor,
-            observations: hourlyForecast.time.map((t, i) => ({
-                time: t, degree: hourlyForecast.winddirection_10m_gfs_seamless[i]
-            }))
-        });
+        gfsDataset.data = hourlyForecast.time.map((t, i) => ({ x: new Date(t), y: hourlyForecast.windspeed_10m_gfs_seamless[i] }));
+        arrowSets[0].observations = hourlyForecast.time.map((t, i) => ({
+            time: t, degree: hourlyForecast.winddirection_10m_gfs_seamless[i]
+        }));
     }
+    datasets.push(gfsDataset);
+
     // --- AROME Forecast Data ---
+    const aromeDataset = {
+        label: 'AROME Wind Speed',
+        data: [],
+        borderColor: aromeColor, 
+        backgroundColor: aromeColor,
+        tension: 0.1, 
+        pointRadius: 1,
+    };
     if (hourlyForecast.windspeed_10m_arome_france) {
-        datasets.push({
-            label: 'AROME Wind Speed', // Label for the line
-            data: hourlyForecast.windspeed_10m_arome_france,
-            borderColor: aromeColor, tension: 0.1, pointRadius: 1,
-        });
-        arrowSets.push({
-            label: 'AROME Wind Speed', // EXACT SAME label for the arrows
-            color: aromeColor,
-            observations: hourlyForecast.time.map((t, i) => ({
-                time: t, degree: hourlyForecast.winddirection_10m_arome_france[i]
-            }))
-        });
+        aromeDataset.data = hourlyForecast.time.map((t, i) => ({ x: new Date(t), y: hourlyForecast.windspeed_10m_arome_france[i] }));
+        arrowSets[1].observations = hourlyForecast.time.map((t, i) => ({
+            time: t, degree: hourlyForecast.winddirection_10m_arome_france[i]
+        }));
     }
+    datasets.push(aromeDataset);
 
     // --- Ground Truth Data ---
-    if (hourlyGroundTruth && hourlyGroundTruth.observations.length > 0) {
-        
-        const validObservations = hourlyGroundTruth.observations.filter(obs => 
+    const observationDataset = {
+        type: 'line',
+        label: 'Observation',
+        data: [],
+        borderColor: observationsColor,
+        backgroundColor: observationsColor,
+        tension: 0.1,
+        pointRadius: 1,
+    };
+    if (hourlyObservations && hourlyObservations.observations.length > 0) {
+        const validObservations = hourlyObservations.observations.filter(obs => 
             obs.time !== null && 
             obs.wind_speed_kmh !== null && 
             obs.wind_direction_degrees !== null
         );
 
-        datasets.push({
-            type: 'line',
-            label: 'Observation', // Label for the line
-            data: validObservations.map(obs => ({
-                x: new Date(obs.time),
-                y: obs.wind_speed_kmh
-            })),
-            borderColor: groundTruthColor,
-            backgroundColor: groundTruthColor,
-            tension: 0.1,
-            pointRadius: 3,
-            borderWidth: 2,
-        });
-        
-        // --- THIS IS THE FIX ---
-        // Ensure the arrow set for observations has the EXACT same label.
-        arrowSets.push({
-            label: 'Observation', // EXACT SAME label for the arrows
-            color: groundTruthColor,
-            observations: validObservations.map(obs => ({
-                time: obs.time,
-                degree: obs.wind_direction_degrees
-            }))
-        });
-        // --- END OF FIX ---
+        const hourlyObservationsFiltered = [];
+        const hours = new Set();
+        for (const obs of validObservations) {
+            const hour = new Date(obs.time).getHours();
+            if (!hours.has(hour)) {
+                hourlyObservationsFiltered.push(obs);
+                hours.add(hour);
+            }
+        }
+
+        observationDataset.data = validObservations.map(obs => ({
+            x: new Date(obs.time),
+            y: obs.wind_speed_kmh
+        }));
+        arrowSets[2].observations = hourlyObservationsFiltered.map(obs => ({
+            time: obs.time,
+            degree: obs.wind_direction_degrees
+        }));
     }
+    datasets.push(observationDataset);
 
     weatherChart = new Chart(ctx, {
         type: 'line',
@@ -200,8 +215,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'time',
                     time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
                     title: { display: true, text: 'Time of Day' },
-                    min: `${startDateInput.value}T00:00:00`,
-                    max: `${startDateInput.value}T23:59:59`,
+                    min: `${date}T00:00:00`,
+                    max: `${date}T23:59:59`,
                 },
                 y: {
                     title: { display: true, text: 'Wind Speed (km/h)' },
@@ -217,5 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
 };
 
     fetchButton.addEventListener('click', fetchForecast);
+    prevDayButton.addEventListener('click', () => changeDate(-1));
+    nextDayButton.addEventListener('click', () => changeDate(1));
+
     fetchForecast();
 });
