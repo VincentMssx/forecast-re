@@ -1,151 +1,162 @@
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #f4f7f9;
-    color: #333;
-    margin: 0;
-    padding: 20px;
-    display: flex;
-    justify-content: center;
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+background-color: #f4f7f9;
+color: #333;
+margin: 0;
+padding: 20px;
+display: flex;
+justify-content: center;
 }
 
 .container {
-    width: 100%;
-    max-width: 1200px;
-    background: #fff;
-    padding: 20px 40px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+width: 100%;
+max-width: 1200px;
+background: #fff;
+padding: 20px 40px;
+border-radius: 8px;
+box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 h1 {
-    color: #1a253c;
-    text-align: center;
+color: #1a253c;
+text-align: center;
 }
 
 p {
-    text-align: center;
-    color: #555;
-    margin-bottom: 30px;
+text-align: center;
+color: #555;
+margin-bottom: 30px;
 }
 
 .controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
+display: flex;
+justify-content: center;
+align-items: center;
+gap: 15px;
+margin-bottom: 20px;
+flex-wrap: wrap;
 }
 
 .input-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+display: flex;
+align-items: center;
+gap: 8px;
 }
 
-input[type="number"] {
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    width: 120px;
+input[type="date"] {
+padding: 8px;
+border: 1px solid #ccc;
+border-radius: 4px;
+width: 150px;
 }
 
 button {
-    padding: 10px 20px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s;
+padding: 10px 20px;
+background-color: #007bff;
+color: white;
+border: none;
+border-radius: 4px;
+cursor: pointer;
+font-size: 16px;
+transition: background-color 0.3s;
 }
 
 button:hover {
-    background-color: #0056b3;
+background-color: #0056b3;
 }
 
 #status-message {
-    text-align: center;
-    min-height: 20px;
-    margin-bottom: 20px;
-    color: #d9534f;
+text-align: center;
+min-height: 20px;
+margin-bottom: 20px;
+color: #d9534f;
 }
 
 .chart-container {
-    position: relative;
-    width: 100%;
-    height: 60vh; /* Responsive height */
+position: relative;
+width: 100%;
+margin-bottom: 30px;
 }
 
+.chart-container.wind-speed {
+height: 50vh;
+}
 
-.slider-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 15px;
-    margin-top: 15px;
-    padding: 10px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
+.chart-container.wind-direction {
+height: 5vh;
+min-height: 150px;
+}
+
+.chart-container.tide {
+height: 45vh;
+}
+
+.chart-title {
+text-align: center;
+font-size: 1.2em;
+font-weight: bold;
+margin-bottom: 10px;
+color: #1a253c;
 }
 
 @media (max-width: 768px) {
+body {
+    padding: 10px 5px;
+}
 
-    body {
-        /* Reduce body padding on small screens to maximize space */
-        padding: 10px 5px; /* Less padding on the sides */
-    }
+.container {
+    padding: 15px;
+}
 
-    .container {
-        /* Reduce container padding */
-        padding: 15px;
-    }
+h1 {
+    font-size: 1.6em;
+}
 
-    h1 {
-        /* Reduce the main title font size */
-        font-size: 1.6em; /* Slightly smaller for very narrow devices */
-    }
+p {
+    font-size: 0.9em;
+}
 
-    p {
-        /* Reduce the subtitle font size */
-        font-size: 0.9em;
-    }
+.controls {
+    flex-direction: column;
+    gap: px;
+}
 
-    .controls {
-        /* Stack the control groups vertically */
-        flex-direction: column;
-        gap: 15px; /* A slightly smaller gap is fine */
-    }
+.input-group {
+    width: 100%;
+    justify-content: center;
+}
 
-    .input-group {
-        /* Ensure this group stays together and is centered */
-        width: 100%;
-        justify-content: center;
-    }
+#fetch-button {
+    width: 90%;
+    max-width: 350px;
+    padding: 12px;
+    font-size: 16px;
+}
 
-    /* NEW: Style the date input for better sizing and appearance */
-    input[type="date"] {
-        padding: 8px;
-        font-size: 16px;
-        /* Give it a flexible width to fit nicely between the buttons */
-        width: 150px; 
-    }
-    
-    #fetch-button {
-        /* Make the main button larger and easier to tap */
-        width: 90%; /* Use a percentage for better flexibility */
-        max-width: 350px; /* Prevent it from being huge on tablets */
-        padding: 12px;
-        font-size: 16px;
-    }
+.chart-container.wind-speed {
+    height: 45vh;
+}
 
-    .chart-container {
-        /* Use aspect-ratio for better chart proportions */
-        /* This tells the container to be roughly 1.2 times wider than it is tall */
-        aspect-ratio: 1.2; 
-        /* We no longer need a fixed height, the aspect-ratio handles it */
-        height: auto;
-        min-height: unset; /* Unset the previous min-height */
-    }
+.chart-container.wind-direction {
+    height: 1vh;
+    min-height: 10px;
+}
+
+.chart-container.tide {
+    height: 40vh;
+}
+}
+
+.direction-chart-container {
+height: 10px; /* Give the direction chart a fixed, shorter height */
+margin-bottom: -20px; /* Reduce margin to bring charts closer */
+}
+
+/* Also, let's adjust the main chart container style for better consistency */
+.chart-container {
+    position: relative;
+    width: 100%;
+    min-height: 450px; /* Use a min-height for robustness */
+    height: 55vh; /* A viewport-based height is good for the main charts */
 }

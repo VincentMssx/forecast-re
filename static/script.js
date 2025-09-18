@@ -7,7 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const CHART_DATUM_OFFSET = 3.55;
 
-    let weatherChart, tideChart;
+    let weatherChart, tideChart, windDirectionChart;
+    let lastFetchedData = {};
+    let wasMobile = window.innerWidth < 768;
 
     const formatDate = (date) => date.toISOString().split('T')[0];
 
@@ -26,20 +28,12 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let i = 0; i < data.length - 1; i++) {
             const p1 = data[i];
             const p2 = data[i + 1];
-
-            // Check if the line crosses the segment between p1 and p2
             if ((p1.y < lineHeight && p2.y > lineHeight) || (p1.y > lineHeight && p2.y < lineHeight)) {
-                // Perform linear interpolation to find the exact time of crossing
                 const timeDiff = p2.x.getTime() - p1.x.getTime();
                 const heightDiff = p2.y - p1.y;
                 const weight = (lineHeight - p1.y) / heightDiff;
-                
                 const intersectionTime = new Date(p1.x.getTime() + timeDiff * weight);
-                
-                intersections.push({
-                    x: intersectionTime,
-                    y: lineHeight
-                });
+                intersections.push({ x: intersectionTime, y: lineHeight });
             }
         }
         return intersections;
@@ -47,66 +41,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const updateIntersectionAnnotations = (chart, intersections) => {
         const annotations = chart.options.plugins.annotation.annotations;
-
-        // 1. Clear previous intersection annotations
         Object.keys(annotations).forEach(key => {
-            if (key.startsWith('intersection_')) {
-                delete annotations[key];
-            }
+            if (key.startsWith('intersection_')) delete annotations[key];
         });
-
-        // 2. Add new annotations for each intersection
         intersections.forEach((point, index) => {
-            // Add the simple dot
             annotations[`intersection_dot_${index}`] = {
-                type: 'point',
-                xValue: point.x,
-                yValue: point.y,
-                backgroundColor: 'rgba(255, 255, 255, 1)',
-                borderColor: 'darkred',
-                borderWidth: 2,
-                radius: 5,
+                type: 'point', xValue: point.x, yValue: point.y, backgroundColor: 'rgba(255, 255, 255, 1)',
+                borderColor: 'darkred', borderWidth: 2, radius: 5,
             };
-            // Add the time label
             annotations[`intersection_label_${index}`] = {
-                type: 'label',
-                xValue: point.x,
-                yValue: point.y,
-                content: point.x.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                font: { size: 12, weight: 'bold' },
-                color: 'white',
-                backgroundColor: 'rgba(192, 0, 0, 0.8)',
-                padding: 4,
-                borderRadius: 4,
-                yAdjust: -20, // Position the label above the dot
+                type: 'label', xValue: point.x, yValue: point.y, content: point.x.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                font: { size: 12, weight: 'bold' }, color: 'white', backgroundColor: 'rgba(192, 0, 0, 0.8)',
+                padding: 4, borderRadius: 4, yAdjust: -20,
             };
         });
     };
 
+    // --- FIX #1: Bigger Arrow Bug ---
     const windArrowPlugin = {
         id: 'windArrowPlugin',
         afterDatasetsDraw(chart, args, options) {
             const { ctx, scales: { x } } = chart;
             const arrowSets = options.arrowSets || [];
-            
-            ctx.save();
-            
-            const headLength = 8, headBase = 4, tailLength = 10, rowSpacing = 20;
+            const visibleArrowSets = arrowSets.filter(set => set.observations.length > 0);
+            if (visibleArrowSets.length === 0) return;
 
-            arrowSets.forEach((arrowSet, setIndex) => {
-                const targetDataset = chart.data.datasets.find(d => d.label === arrowSet.label);
-                if (!targetDataset || !chart.isDatasetVisible(chart.data.datasets.indexOf(targetDataset))) return;
+            const headLength = 8, headBase = 4, tailLength = 10;
+            // const chartHeight = chart.chartArea.height;
+            const chartHeight = 100;
+            console.log(chartHeight)
+            const rowHeight = chartHeight / visibleArrowSets.length;
 
+            visibleArrowSets.forEach((arrowSet, setIndex) => {
                 arrowSet.observations.forEach(obs => {
                     if (obs.time && obs.degree !== null) {
-                        const xPos = x.getPixelForValue(new Date(obs.time));
-                        const yPos = chart.chartArea.bottom + 80 + (setIndex * rowSpacing);
+                        // Isolate each arrow's drawing state completely
+                        ctx.save();
 
-                        if (xPos < chart.chartArea.left || xPos > chart.chartArea.right) return;
+                        const xPos = x.getPixelForValue(new Date(obs.time));
+                        const yPos = chart.chartArea.top + (rowHeight * (setIndex + 0.5));
+                        if (xPos < chart.chartArea.left || xPos > chart.chartArea.right) {
+                            ctx.restore();
+                            return;
+                        }
 
                         ctx.translate(xPos, yPos);
                         ctx.rotate(obs.degree * Math.PI / 180);
                         
+                        // Draw Arrowhead
                         ctx.beginPath();
                         ctx.moveTo(0, -headLength);
                         ctx.lineTo(headBase, 0);
@@ -115,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillStyle = arrowSet.color;
                         ctx.fill();
 
+                        // Draw Tail
                         ctx.beginPath();
                         ctx.moveTo(0, 0);
                         ctx.lineTo(0, tailLength);
@@ -122,49 +105,37 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.lineWidth = 1.5;
                         ctx.stroke();
                         
-                        ctx.setTransform(1, 0, 0, 1, 0, 0);
+                        // Restore the clean state
+                        ctx.restore();
                     }
                 });
             });
-            ctx.restore();
         }
     };
     Chart.register(windArrowPlugin);
 
     const fetchForecast = async () => {
         const date = dateInput.value;
-        if (!date) {
-            statusMessage.textContent = "Please select a date.";
-            return;
-        }
-
+        if (!date) { statusMessage.textContent = "Please select a date."; return; }
         statusMessage.textContent = "Fetching all data...";
         fetchButton.disabled = true;
-
         try {
             const [forecastResponse, observationsResponse, tidesResponse] = await Promise.all([
                 fetch(`/api/forecast?date=${date}`),
                 fetch(`/api/observations?date=${date}`),
                 fetch(`/api/tides?date=${date}`)
             ]);
-
             if (!forecastResponse.ok) throw new Error('Failed to fetch forecast data.');
             if (!observationsResponse.ok) throw new Error('Failed to fetch observations data.');
             if (!tidesResponse.ok) throw new Error('Failed to fetch tides data.');
-
             const forecastData = await forecastResponse.json();
             const observationsData = await observationsResponse.json();
             const tidesData = await tidesResponse.json();
-
-            console.log("Forecast Data:", forecastData);
-            console.log("observationsData Data:", observationsData);
-            console.log("tidesData Data:", tidesData);
-
+            lastFetchedData = { date, forecastData, observationsData, tidesData };
             statusMessage.textContent = "";
-
+            renderWindDirectionChart(date, forecastData.hourly, observationsData);
             renderChart(date, forecastData.hourly, observationsData);
             renderTideChart(date, tidesData);
-
         } catch (error) {
             console.error("Error:", error);
             statusMessage.textContent = `Error: ${error.message}.`;
@@ -173,100 +144,88 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    const renderChart = (date, hourlyForecast, hourlyObservations) => {
-        const ctx = document.getElementById('weatherChart').getContext('2d');
-        if (weatherChart) weatherChart.destroy();
-        if (!hourlyForecast || !hourlyForecast.time) {
-            statusMessage.textContent = "No forecast data received.";
-            return;
-        }
-
+    const renderWindDirectionChart = (date, hourlyForecast, hourlyObservations) => {
+        const ctx = document.getElementById('windDirectionChart').getContext('2d');
+        if (windDirectionChart) windDirectionChart.destroy();
         const gfsColor = 'rgba(47, 51, 175, 1)';
         const aromeColor = 'rgba(224, 111, 31, 1)';
         const observationsColor = 'rgba(0, 150, 0, 1)';
-
-        const datasets = [];
         const arrowSets = [
-            { label: 'GFS Wind Speed', color: gfsColor, observations: [] },
-            { label: 'AROME Wind Speed', color: aromeColor, observations: [] },
+            { label: 'GFS', color: gfsColor, observations: [] },
+            { label: 'AROME', color: aromeColor, observations: [] },
             { label: 'Observation', color: observationsColor, observations: [] }
         ];
-
-        if (hourlyForecast.windspeed_10m_gfs_seamless) {
-            datasets.push({
-                label: 'GFS Wind Speed',
-                data: hourlyForecast.time.map((t, i) => ({ x: new Date(t), y: hourlyForecast.windspeed_10m_gfs_seamless[i] })),
-                borderColor: gfsColor, backgroundColor: gfsColor, tension: 0.1, pointRadius: 1,
-            });
-            arrowSets[0].observations = hourlyForecast.time.map((t, i) => ({
-                time: t, degree: hourlyForecast.winddirection_10m_gfs_seamless[i]
-            }));
+        if (hourlyForecast.winddirection_10m_gfs_seamless) {
+            arrowSets[0].observations = hourlyForecast.time.map((t, i) => ({ time: t, degree: hourlyForecast.winddirection_10m_gfs_seamless[i] }));
         }
-
-        if (hourlyForecast.windspeed_10m_arome_france) {
-            datasets.push({
-                label: 'AROME Wind Speed',
-                data: hourlyForecast.time.map((t, i) => ({ x: new Date(t), y: hourlyForecast.windspeed_10m_arome_france[i] })),
-                borderColor: aromeColor, backgroundColor: aromeColor, tension: 0.1, pointRadius: 1,
-            });
-            arrowSets[1].observations = hourlyForecast.time.map((t, i) => ({
-                time: t, degree: hourlyForecast.winddirection_10m_arome_france[i]
-            }));
+        if (hourlyForecast.winddirection_10m_arome_france) {
+            arrowSets[1].observations = hourlyForecast.time.map((t, i) => ({ time: t, degree: hourlyForecast.winddirection_10m_arome_france[i] }));
         }
-
         if (hourlyObservations && hourlyObservations.observations.length > 0) {
-            const validObservations = hourlyObservations.observations.filter(obs => obs.time && obs.wind_speed_kmh !== null);
-            datasets.push({
-                label: 'Observation',
-                data: validObservations.map(obs => ({ x: new Date(obs.time), y: obs.wind_speed_kmh })),
-                borderColor: observationsColor, backgroundColor: observationsColor, tension: 0.1, pointRadius: 1,
-            });
-
-            const hourlyFiltered = [];
-            const hours = new Set();
-            for (const obs of validObservations) {
-                const hour = new Date(obs.time).getHours();
-                if (!hours.has(hour)) {
-                    hourlyFiltered.push(obs);
-                    hours.add(hour);
-                }
-            }
-            arrowSets[2].observations = hourlyFiltered.map(obs => ({ time: obs.time, degree: obs.wind_direction_degrees }));
+            // --- FIX #2: Filter Observations ---
+            arrowSets[2].observations = hourlyObservations.observations
+                .filter(obs => obs.time && obs.wind_direction_degrees !== null)
+                // This new filter only keeps observations where the minutes are 0
+                .filter(obs => new Date(obs.time).getMinutes() === 0) 
+                .map(obs => ({ time: obs.time, degree: obs.wind_direction_degrees }));
         }
-
-        weatherChart = new Chart(ctx, {
-            type: 'line',
-            data: { datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false, // This is important! Keep it false.
-                layout: { padding: { bottom: 80 } },
+        windDirectionChart = new Chart(ctx, {
+            type: 'line', data: { datasets: [] }, options: {
+                responsive: true, maintainAspectRatio: false,
+                layout: { padding: { top: 5, bottom: 5 } },
                 scales: {
+                    y: { display: false },
                     x: {
-                        type: 'time',
-                        time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
-                        title: { display: true, text: 'Time of Day' },
-                        min: `${date}T00:00:00`,
-                        max: `${date}T23:59:59`,
-                    },
-                    y: {
-                        title: { display: true, text: 'Wind Speed (knt)' },
-                        beginAtZero: true
+                        type: 'time', time: { unit: 'hour' }, min: `${date}T00:00:00`, max: `${date}T23:59:59`,
+                        ticks: { display: false }, grid: { display: false }
                     }
                 },
                 plugins: {
-                    windArrowPlugin: { arrowSets },
-                    tooltip: { mode: 'index', intersect: false },
-                    // --- NEW LOGIC FOR RESPONSIVE LEGEND ---
-                    legend: {
-                        // Check if the window width is less than 768px (mobile)
-                        // If it is, move the legend to the bottom. Otherwise, keep it on top.
-                        position: window.innerWidth < 768 ? 'bottom' : 'top',
-                        labels: {
-                            // Use a smaller box size on mobile to save space
-                            boxWidth: window.innerWidth < 768 ? 15 : 40,
+                    layout: {
+                        padding: {
+                            top: 8, // Add a bit more cushioning
+                            bottom: 8,
+                            right: 50,
+                            left: 50
                         }
-                    }
+                    },
+                    windArrowPlugin: { arrowSets }, legend: { display: false }, tooltip: { enabled: false },
+                    title: { display: true, text: 'Wind Direction' }
+                }
+            }
+        });
+    };
+
+    const renderChart = (date, hourlyForecast, hourlyObservations) => {
+        const ctx = document.getElementById('weatherChart').getContext('2d');
+        if (weatherChart) weatherChart.destroy();
+        if (!hourlyForecast || !hourlyForecast.time) { statusMessage.textContent = "No forecast data received."; return; }
+        const isMobile = window.innerWidth < 768;
+        const gfsColor = 'rgba(47, 51, 175, 1)';
+        const aromeColor = 'rgba(224, 111, 31, 1)';
+        const observationsColor = 'rgba(0, 150, 0, 1)';
+        const datasets = [];
+        if (hourlyForecast.windspeed_10m_gfs_seamless) {
+            datasets.push({ label: 'GFS Wind Speed', data: hourlyForecast.time.map((t, i) => ({ x: new Date(t), y: hourlyForecast.windspeed_10m_gfs_seamless[i] })), borderColor: gfsColor, backgroundColor: gfsColor, tension: 0.1, pointRadius: 1 });
+        }
+        if (hourlyForecast.windspeed_10m_arome_france) {
+            datasets.push({ label: 'AROME Wind Speed', data: hourlyForecast.time.map((t, i) => ({ x: new Date(t), y: hourlyForecast.windspeed_10m_arome_france[i] })), borderColor: aromeColor, backgroundColor: aromeColor, tension: 0.1, pointRadius: 1 });
+        }
+        if (hourlyObservations && hourlyObservations.observations.length > 0) {
+            const validObservations = hourlyObservations.observations.filter(obs => obs.time && obs.wind_speed_kmh !== null);
+            datasets.push({ label: 'Observation', data: validObservations.map(obs => ({ x: new Date(obs.time), y: obs.wind_speed_kmh })), borderColor: observationsColor, backgroundColor: observationsColor, tension: 0.1, pointRadius: 1 });
+        }
+        weatherChart = new Chart(ctx, {
+            type: 'line', data: { datasets }, options: {
+                responsive: true, maintainAspectRatio: false, layout: { padding: { top: 10 } },
+                scales: {
+                    x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } }, title: { display: true, text: 'Time of Day' }, min: `${date}T00:00:00`, max: `${date}T23:59:59` },
+                    y: { title: { display: true, text: 'Wind Speed (knt)' }, beginAtZero: true }
+                },
+                plugins: {
+                    tooltip: { mode: 'index', intersect: false },
+                    legend: { position: isMobile ? 'bottom' : 'top', labels: { boxWidth: isMobile ? 15 : 40 } },
+                    title: { display: true, text: 'Wind Speed' }
                 }
             }
         });
@@ -276,113 +235,44 @@ document.addEventListener('DOMContentLoaded', () => {
         const tideCtx = document.getElementById('tideChart').getContext('2d');
         if (tideChart) tideChart.destroy();
         if (!tidesData || !tidesData.hourly || !tidesData.hourly.time) return;
-
-        const tidePoints = tidesData.hourly.time.map((t, i) => ({
-            x: new Date(t),
-            y: tidesData.hourly.sea_level_height_msl[i] + CHART_DATUM_OFFSET
-        }));
-
-        const initialLineHeight = 3.0; // Starting height for the line
-
+        const tidePoints = tidesData.hourly.time.map((t, i) => ({ x: new Date(t), y: tidesData.hourly.sea_level_height_msl[i] + CHART_DATUM_OFFSET }));
+        const initialLineHeight = 3.0;
         const finalAnnotations = {
-            zeroLine: {
-                type: 'line',
-                yMin: 0,
-                yMax: 0,
-                borderColor: 'rgb(54, 162, 235)',
-                borderWidth: 2,
-                borderDash: [6, 6],
-                label: { content: 'Hydrographic Zero', enabled: true, position: 'start', backgroundColor: 'rgba(54, 162, 235, 0.8)' }
-            },
-            // The DRAGGABLE red line
-            draggableLine: {
-                type: 'line',
-                yMin: initialLineHeight,
-                yMax: initialLineHeight,
-                borderColor: 'red',
-                borderWidth: 2,
-                draggable: true, // MAKE THE LINE DRAGGABLE
-                // This event fires after the user finishes dragging
+            zeroLine: { type: 'line', yMin: 0, yMax: 0, borderColor: 'rgb(54, 162, 235)', borderWidth: 2, borderDash: [6, 6], label: { content: 'Hydrographic Zero', enabled: true, position: 'start', backgroundColor: 'rgba(54, 162, 235, 0.8)' } },
+            draggableLine: { type: 'line', yMin: initialLineHeight, yMax: initialLineHeight, borderColor: 'red', borderWidth: 2, draggable: true,
                 onDragEnd: function(event) {
-                    const chart = event.chart;
-                    const newLineHeight = event.subject.options.yMin; // Get the new height
+                    const chart = event.chart; const newLineHeight = event.subject.options.yMin;
                     const intersections = findIntersections(tidePoints, newLineHeight);
                     updateIntersectionAnnotations(chart, intersections);
-                    chart.update('none'); // Update without animation
+                    chart.update('none');
                 }
             }
         };
-
-
         const todayString = new Date().toISOString().split('T')[0];
-        // 2. If it's today, ADD the currentTimePoint to our 'finalAnnotations' object.
         if (date === todayString) {
-            const now = new Date();
-            const currentHour = now.getHours();
-            
-            // Handle the edge case for the last hour of the day (23:00)
+            const now = new Date(); const currentHour = now.getHours();
             if (tidePoints[currentHour] && currentHour < 23) {
-                const point1 = tidePoints[currentHour];
-                const point2 = tidePoints[currentHour + 1];
-                
+                const point1 = tidePoints[currentHour]; const point2 = tidePoints[currentHour + 1];
                 const minutesFraction = now.getMinutes() / 60;
                 const interpolatedHeight = point1.y + (point2.y - point1.y) * minutesFraction;
-                
-                // Add the new point to our existing object
-                finalAnnotations.currentTimePoint = {
-                    type: 'point',
-                    xValue: now,
-                    yValue: interpolatedHeight,
-                    backgroundColor: 'rgba(255, 0, 0, 0.8)',
-                    borderColor: 'darkred',
-                    borderWidth: 2,
-                    radius: 6
-                };
+                finalAnnotations.currentTimePoint = { type: 'point', xValue: now, yValue: interpolatedHeight, backgroundColor: 'rgba(255, 0, 0, 0.8)', borderColor: 'darkred', borderWidth: 2, radius: 6 };
             }
         }
-        // --- END OF CORRECTION ---
-        
         tideChart = new Chart(tideCtx, {
-            type: 'line',
-            data: {
-                datasets: [{
-                    label: 'Tide Height',
-                    data: tidePoints,
-                    borderColor: 'rgba(50, 100, 200, 1)',
-                    backgroundColor: 'rgba(100, 150, 255, 0.5)',
-                    tension: 0.4, fill: 'start', pointRadius: 0,
-                }]
-            },
+            type: 'line', data: { datasets: [{ label: 'Tide Height', data: tidePoints, borderColor: 'rgba(50, 100, 200, 1)', backgroundColor: 'rgba(100, 150, 255, 0.5)', tension: 0.4, fill: 'start', pointRadius: 0 }] },
             options: {
                 responsive: true, maintainAspectRatio: false,
                 scales: {
-                    x: {
-                        type: 'time', time: { unit: 'hour' },
-                        min: `${date}T00:00:00`, max: `${date}T23:59:59`,
-                    },
-                    y: { 
-                        title: { display: true, text: 'Tide Height / Chart Datum (m)' },
-                        beginAtZero: true
-                    }
+                    x: { type: 'time', time: { unit: 'hour' }, min: `${date}T00:00:00`, max: `${date}T23:59:59` },
+                    y: { title: { display: true, text: 'Tide Height / Chart Datum (m)' }, beginAtZero: true }
                 },
                 plugins: {
-                    legend: { display: false },
-                    title: { display: true, text: `Tide Evolution for ${date}`, font: { size: 16 } },
-                    tooltip: {
-                        intersect: false,
-                        mode: 'index',
-                        callbacks: {
-                            label: (context) => `Height: ${context.parsed.y.toFixed(2)} m`
-                        }
-                    },
-                    // 3. Use the 'finalAnnotations' object that contains everything.
-                    annotation: {
-                        annotations: finalAnnotations
-                    }
+                    legend: { display: false }, title: { display: true, text: `Tide Evolution for ${date}`, font: { size: 16 } },
+                    tooltip: { intersect: false, mode: 'index', callbacks: { label: (context) => `Height: ${context.parsed.y.toFixed(2)} m` } },
+                    annotation: { annotations: finalAnnotations }
                 }
             }
         });
-
         const initialIntersections = findIntersections(tidePoints, initialLineHeight);
         updateIntersectionAnnotations(tideChart, initialIntersections);
         tideChart.update('none');
@@ -391,6 +281,23 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchButton.addEventListener('click', fetchForecast);
     prevDayButton.addEventListener('click', () => changeDate(-1));
     nextDayButton.addEventListener('click', () => changeDate(1));
-
     fetchForecast();
+
+    let resizeTimeout;
+    function handleResize() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            const isMobileNow = window.innerWidth < 768;
+            if (isMobileNow !== wasMobile) {
+                wasMobile = isMobileNow;
+                if (lastFetchedData.forecastData) {
+                    console.log(`Breakpoint crossed! Re-rendering for ${isMobileNow ? 'mobile' : 'desktop'}.`);
+                    renderWindDirectionChart(lastFetchedData.date, lastFetchedData.forecastData.hourly, lastFetchedData.observationsData);
+                    renderChart(lastFetchedData.date, lastFetchedData.forecastData.hourly, lastFetchedData.observationsData);
+                    renderTideChart(lastFetchedData.date, lastFetchedData.tidesData);
+                }
+            }
+        }, 250);
+    }
+    window.addEventListener('resize', handleResize);
 });
