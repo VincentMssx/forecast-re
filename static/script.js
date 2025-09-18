@@ -234,19 +234,35 @@ document.addEventListener('DOMContentLoaded', () => {
             type: 'line',
             data: { datasets },
             options: {
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false, // This is important! Keep it false.
                 layout: { padding: { bottom: 80 } },
                 scales: {
                     x: {
-                        type: 'time', time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                        type: 'time',
+                        time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
                         title: { display: true, text: 'Time of Day' },
-                        min: `${date}T00:00:00`, max: `${date}T23:59:59`,
+                        min: `${date}T00:00:00`,
+                        max: `${date}T23:59:59`,
                     },
-                    y: { title: { display: true, text: 'Wind Speed (km/h)' }, beginAtZero: true }
+                    y: {
+                        title: { display: true, text: 'Wind Speed (km/h)' },
+                        beginAtZero: true
+                    }
                 },
                 plugins: {
                     windArrowPlugin: { arrowSets },
-                    tooltip: { mode: 'index', intersect: false }
+                    tooltip: { mode: 'index', intersect: false },
+                    // --- NEW LOGIC FOR RESPONSIVE LEGEND ---
+                    legend: {
+                        // Check if the window width is less than 768px (mobile)
+                        // If it is, move the legend to the bottom. Otherwise, keep it on top.
+                        position: window.innerWidth < 768 ? 'bottom' : 'top',
+                        labels: {
+                            // Use a smaller box size on mobile to save space
+                            boxWidth: window.innerWidth < 768 ? 15 : 40,
+                        }
+                    }
                 }
             }
         });
@@ -284,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 draggable: true, // MAKE THE LINE DRAGGABLE
                 // This event fires after the user finishes dragging
                 onDragEnd: function(event) {
+                    console.log('Drag ended!'); // DEBUGGING
                     const chart = event.chart;
                     const newLineHeight = event.subject.options.yMin; // Get the new height
                     const intersections = findIntersections(tidePoints, newLineHeight);

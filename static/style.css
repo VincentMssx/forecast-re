@@ -91,25 +91,61 @@ button:hover {
 }
 
 @media (max-width: 768px) {
+
+    body {
+        /* Reduce body padding on small screens to maximize space */
+        padding: 10px 5px; /* Less padding on the sides */
+    }
+
     .container {
+        /* Reduce container padding */
         padding: 15px;
     }
 
     h1 {
-        font-size: 1.5em;
+        /* Reduce the main title font size */
+        font-size: 1.6em; /* Slightly smaller for very narrow devices */
+    }
+
+    p {
+        /* Reduce the subtitle font size */
+        font-size: 0.9em;
     }
 
     .controls {
+        /* Stack the control groups vertically */
         flex-direction: column;
-        gap: 10px;
+        gap: 15px; /* A slightly smaller gap is fine */
     }
 
     .input-group {
-        flex-direction: column;
-        gap: 5px;
+        /* Ensure this group stays together and is centered */
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* NEW: Style the date input for better sizing and appearance */
+    input[type="date"] {
+        padding: 8px;
+        font-size: 16px;
+        /* Give it a flexible width to fit nicely between the buttons */
+        width: 150px; 
+    }
+    
+    #fetch-button {
+        /* Make the main button larger and easier to tap */
+        width: 90%; /* Use a percentage for better flexibility */
+        max-width: 350px; /* Prevent it from being huge on tablets */
+        padding: 12px;
+        font-size: 16px;
     }
 
     .chart-container {
-        height: 50vh;
+        /* Use aspect-ratio for better chart proportions */
+        /* This tells the container to be roughly 1.2 times wider than it is tall */
+        aspect-ratio: 1.2; 
+        /* We no longer need a fixed height, the aspect-ratio handles it */
+        height: auto;
+        min-height: unset; /* Unset the previous min-height */
     }
 }
