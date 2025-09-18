@@ -42,6 +42,7 @@ def get_weather_forecast(
         "hourly": "windspeed_10m,winddirection_10m",
         "timezone": "auto",
         "models": "arome_france,gfs_seamless",
+        "wind_speed_unit": "kn",
     }
 
     try:
@@ -220,7 +221,7 @@ def get_observations_hourly(
                         ground_truth_data.append(
                             {
                                 "time": full_datetime_str,
-                                "wind_speed_kmh": wind_speed_kmh,
+                                "wind_speed_kmh": wind_speed_kmh / 1.852,  # Convert km/h to knots
                                 "wind_direction_degrees": wind_direction_degrees,
                             }
                         )

@@ -156,6 +156,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const observationsData = await observationsResponse.json();
             const tidesData = await tidesResponse.json();
 
+            console.log("Forecast Data:", forecastData);
+            console.log("observationsData Data:", observationsData);
+            console.log("tidesData Data:", tidesData);
+
             statusMessage.textContent = "";
 
             renderChart(date, forecastData.hourly, observationsData);
@@ -246,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         max: `${date}T23:59:59`,
                     },
                     y: {
-                        title: { display: true, text: 'Wind Speed (km/h)' },
+                        title: { display: true, text: 'Wind Speed (knt)' },
                         beginAtZero: true
                     }
                 },
@@ -300,7 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 draggable: true, // MAKE THE LINE DRAGGABLE
                 // This event fires after the user finishes dragging
                 onDragEnd: function(event) {
-                    console.log('Drag ended!'); // DEBUGGING
                     const chart = event.chart;
                     const newLineHeight = event.subject.options.yMin; // Get the new height
                     const intersections = findIntersections(tidePoints, newLineHeight);
