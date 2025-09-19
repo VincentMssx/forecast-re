@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // --- FIX #1: Bigger Arrow Bug ---
     const windArrowPlugin = {
         id: 'windArrowPlugin',
         afterDatasetsDraw(chart, args, options) {
@@ -67,28 +66,21 @@ document.addEventListener('DOMContentLoaded', () => {
             if (visibleArrowSets.length === 0) return;
 
             const headLength = 8, headBase = 4, tailLength = 10;
-            // const chartHeight = chart.chartArea.height;
             const chartHeight = 100;
-            console.log(chartHeight)
             const rowHeight = chartHeight / visibleArrowSets.length;
 
             visibleArrowSets.forEach((arrowSet, setIndex) => {
                 arrowSet.observations.forEach(obs => {
                     if (obs.time && obs.degree !== null) {
-                        // Isolate each arrow's drawing state completely
                         ctx.save();
-
                         const xPos = x.getPixelForValue(new Date(obs.time));
                         const yPos = chart.chartArea.top + (rowHeight * (setIndex + 0.5));
                         if (xPos < chart.chartArea.left || xPos > chart.chartArea.right) {
                             ctx.restore();
                             return;
                         }
-
                         ctx.translate(xPos, yPos);
                         ctx.rotate(obs.degree * Math.PI / 180);
-                        
-                        // Draw Arrowhead
                         ctx.beginPath();
                         ctx.moveTo(0, -headLength);
                         ctx.lineTo(headBase, 0);
@@ -96,16 +88,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.closePath();
                         ctx.fillStyle = arrowSet.color;
                         ctx.fill();
-
-                        // Draw Tail
                         ctx.beginPath();
                         ctx.moveTo(0, 0);
                         ctx.lineTo(0, tailLength);
                         ctx.strokeStyle = arrowSet.color;
                         ctx.lineWidth = 1.5;
                         ctx.stroke();
-                        
-                        // Restore the clean state
                         ctx.restore();
                     }
                 });
@@ -133,8 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const tidesData = await tidesResponse.json();
             lastFetchedData = { date, forecastData, observationsData, tidesData };
             statusMessage.textContent = "";
-            renderWindDirectionChart(date, forecastData.hourly, observationsData);
             renderChart(date, forecastData.hourly, observationsData);
+            renderWindDirectionChart(date, forecastData.hourly, observationsData);
             renderTideChart(date, tidesData);
         } catch (error) {
             console.error("Error:", error);
@@ -162,33 +150,31 @@ document.addEventListener('DOMContentLoaded', () => {
             arrowSets[1].observations = hourlyForecast.time.map((t, i) => ({ time: t, degree: hourlyForecast.winddirection_10m_arome_france[i] }));
         }
         if (hourlyObservations && hourlyObservations.observations.length > 0) {
-            // --- FIX #2: Filter Observations ---
             arrowSets[2].observations = hourlyObservations.observations
                 .filter(obs => obs.time && obs.wind_direction_degrees !== null)
-                // This new filter only keeps observations where the minutes are 0
                 .filter(obs => new Date(obs.time).getMinutes() === 0) 
                 .map(obs => ({ time: obs.time, degree: obs.wind_direction_degrees }));
         }
         windDirectionChart = new Chart(ctx, {
             type: 'line', data: { datasets: [] }, options: {
                 responsive: true, maintainAspectRatio: false,
-                layout: { padding: { top: 5, bottom: 5 } },
+                layout: { padding: { top: 10, right: 50, left: 50 } },
                 scales: {
                     y: { display: false },
                     x: {
                         type: 'time', time: { unit: 'hour' }, min: `${date}T00:00:00`, max: `${date}T23:59:59`,
-                        ticks: { display: false }, grid: { display: false }
+                        ticks: { display: false }, grid: { display: false },
+                        afterFit: (axis) => {
+                            if (weatherChart) {
+                                const weatherChartXAxis = weatherChart.scales.x;
+                                axis.width = weatherChartXAxis.width;
+                                axis.left = weatherChartXAxis.left;
+                                axis.right = weatherChartXAxis.right;
+                            }
+                        }
                     }
                 },
                 plugins: {
-                    layout: {
-                        padding: {
-                            top: 8, // Add a bit more cushioning
-                            bottom: 8,
-                            right: 50,
-                            left: 50
-                        }
-                    },
                     windArrowPlugin: { arrowSets }, legend: { display: false }, tooltip: { enabled: false },
                     title: { display: true, text: 'Wind Direction' }
                 }
@@ -217,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         weatherChart = new Chart(ctx, {
             type: 'line', data: { datasets }, options: {
-                responsive: true, maintainAspectRatio: false, layout: { padding: { top: 10 } },
+                responsive: true, maintainAspectRatio: false, layout: { padding: { top: 10, right: 50, left: 50 } },
                 scales: {
                     x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } }, title: { display: true, text: 'Time of Day' }, min: `${date}T00:00:00`, max: `${date}T23:59:59` },
                     y: { title: { display: true, text: 'Wind Speed (knt)' }, beginAtZero: true }
@@ -292,8 +278,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 wasMobile = isMobileNow;
                 if (lastFetchedData.forecastData) {
                     console.log(`Breakpoint crossed! Re-rendering for ${isMobileNow ? 'mobile' : 'desktop'}.`);
-                    renderWindDirectionChart(lastFetchedData.date, lastFetchedData.forecastData.hourly, lastFetchedData.observationsData);
                     renderChart(lastFetchedData.date, lastFetchedData.forecastData.hourly, lastFetchedData.observationsData);
+                    renderWindDirectionChart(lastFetchedData.date, lastFetchedData.forecastData.hourly, lastFetchedData.observationsData);
                     renderTideChart(lastFetchedData.date, lastFetchedData.tidesData);
                 }
             }
