@@ -49,6 +49,20 @@ def get_weather_forecast(
         response = requests.get(OPEN_METEO_URL, params=params)
         response.raise_for_status()
         forecast_data = response.json()
+
+        # Invert wind direction for GFS and AROME models by 180 degrees
+        if 'hourly' in forecast_data and forecast_data['hourly']:
+            if 'winddirection_10m_gfs_seamless' in forecast_data['hourly'] and forecast_data['hourly']['winddirection_10m_gfs_seamless']:
+                forecast_data['hourly']['winddirection_10m_gfs_seamless'] = [
+                    (d + 180) % 360 if d is not None else None
+                    for d in forecast_data['hourly']['winddirection_10m_gfs_seamless']
+                ]
+            if 'winddirection_10m_arome_france' in forecast_data['hourly'] and forecast_data['hourly']['winddirection_10m_arome_france']:
+                forecast_data['hourly']['winddirection_10m_arome_france'] = [
+                    (d + 180) % 360 if d is not None else None
+                    for d in forecast_data['hourly']['winddirection_10m_arome_france']
+                ]
+        
         logger.info("Successfully fetched data from Open-Meteo")
 
         return forecast_data
