@@ -186,6 +186,8 @@ def get_observations_hourly(
                             wind_direction_degrees = (
                                 float(dir_match.group(2).strip()) if dir_match else None
                             )
+                            if wind_direction_degrees is not None:
+                                wind_direction_degrees = (wind_direction_degrees + 180) % 360
                         except ValueError:
                             logger.warning(
                                 f"Scraper: Could not convert wind direction degrees from '{dir_match.group(2) if dir_match else ''}'."
