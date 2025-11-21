@@ -62,7 +62,6 @@ def get_weather_forecast(
                     (d + 180) % 360 if d is not None else None
                     for d in forecast_data['hourly']['winddirection_10m_arome_france']
                 ]
-        
         logger.info("Successfully fetched data from Open-Meteo")
 
         return forecast_data

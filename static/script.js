@@ -222,12 +222,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (tideChart) tideChart.destroy();
         if (!tidesData || !tidesData.hourly || !tidesData.hourly.time) return;
         const tidePoints = tidesData.hourly.time.map((t, i) => ({ x: new Date(t), y: tidesData.hourly.sea_level_height_msl[i] + CHART_DATUM_OFFSET }));
+        const isMobile = window.innerWidth < 768;
         const initialLineHeight = 3.0;
         const finalAnnotations = {
             zeroLine: { type: 'line', yMin: 0, yMax: 0, borderColor: 'rgb(54, 162, 235)', borderWidth: 2, borderDash: [6, 6], label: { content: 'Hydrographic Zero', enabled: true, position: 'start', backgroundColor: 'rgba(54, 162, 235, 0.8)' } },
-            draggableLine: { type: 'line', yMin: initialLineHeight, yMax: initialLineHeight, borderColor: 'red', borderWidth: 2, draggable: true,
+            draggableLine: { 
+                type: 'line', 
+                yMin: initialLineHeight, 
+                yMax: initialLineHeight, 
+                borderColor: 'red', 
+                borderWidth: isMobile ? 4 : 2, 
+                draggable: isMobile, 
+                className: 'draggable-line',
                 onDragEnd: function(event) {
-                    const chart = event.chart; const newLineHeight = event.subject.options.yMin;
+                    const chart = event.chart; 
+                    const newLineHeight = event.subject.options.yMin;
                     const intersections = findIntersections(tidePoints, newLineHeight);
                     updateIntersectionAnnotations(chart, intersections);
                     chart.update('none');

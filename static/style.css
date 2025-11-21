@@ -107,6 +107,10 @@ button:hover {
     padding-left: 20px;
 }
 
+.draggable-line {
+    cursor: ns-resize;
+}
+
 @media (max-width: 768px) {
     body {
         padding: 10px 5px;
